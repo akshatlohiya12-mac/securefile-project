@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureFile - Advanced Document Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.7.0/mammoth.browser.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .main-card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); overflow: hidden; width: 100%; max-width: 42rem; }
+        .tab-btn { padding: 1rem 1.5rem; font-weight: 600; color: #6b7280; border-bottom: 3px solid transparent; transition: all 0.3s ease-in-out; cursor: pointer; }
+        .tab-btn.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+        .tab-panel { transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; }
+        .tab-panel.hidden { opacity: 0; transform: translateY(10px); position: absolute; pointer-events: none; }
+        .drop-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem; border: 2px dashed #d1d5db; border-radius: 0.75rem; text-align: center; transition: all 0.3s ease-in-out; cursor: pointer; }
+        .drop-zone.dragover { border-color: #4f46e5; background-color: #eef2ff; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.65rem 1.25rem; font-weight: 600; border-radius: 0.5rem; transition: all 0.2s ease-in-out; cursor: pointer; }
+        .btn-primary { background-color: #4f46e5; color: white; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background-color: #d1d5db; }
+        .btn:disabled { background-color: #9ca3af; cursor: not-allowed; opacity: 0.7; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-content { background: white; padding: 1.5rem; border-radius: 1rem; max-width: 90%; max-height: 90%; overflow: auto; width: 50rem; }
+        .hidden { display: none; }
+        .docx-preview-content p { margin-bottom: 1em; }
+        .docx-preview-content h1, .docx-preview-content h2 { font-weight: bold; margin-bottom: 0.5em; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="text-center mb-8">
+        <h1 class="text-5xl font-bold text-gray-800">SecureFile 🛡️</h1>
+        <p class="mt-3 text-lg text-gray-600">Your all-in-one tool for secure encryption, file preview, and AI analysis.</p>
+    </div>
+
+    <div class="main-card">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex justify-center gap-6" id="tabContainer">
+                <button data-tab="encrypt" class="tab-btn active">Encrypt</button>
+                <button data-tab="decrypt" class="tab-btn">Decrypt</button>
+            </nav>
+        </div>
+        
+        <div class="relative p-8">
+            <div id="encryptPanel" class="tab-panel">
+                <div id="encryptDropZone" class="drop-zone">
+                    <svg class="h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
+                    <p class="mt-2 text-gray-500"><b>Drag & drop a file</b> or click to select</p>
+                    <input type="file" id="encryptFileInput" class="hidden">
+                </div>
+                 <div id="encryptFileDetails" class="mt-2 text-center hidden">
+                    <p id="encryptFileName" class="text-sm font-medium text-indigo-600"></p>
+                    <button id="encryptPreviewBtn" class="btn btn-secondary text-xs py-1 px-2 mt-1">Preview</button>
+                </div>
+                <div id="geminiSection" class="mt-4 hidden">
+                    <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                         <h3 class="font-bold text-lg text-gray-700 flex items-center gap-2"><svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.922 2.373a2.443 2.443 0 0 1 2.335.03l.135.074c.245.132.47.288.672.46l3.522 3.02a2.458 2.458 0 0 1 .913 1.838v8.402a2.458 2.458 0 0 1-.914 1.838l-3.52 3.018c-.203.173-.428.328-.672.46l-.135.074a2.443 2.443 0 0 1-2.335.03l-.135-.074a6.22 6.22 0 0 1-.672-.46l-3.522-3.02a2.458 2.458 0 0 1-.913-1.838V7.776a2.458 2.458 0 0 1 .914-1.838l3.52-3.018c.203-.173.428-.328.672-.46l.135-.074Zm.159.682a1.443 1.443 0 0 0-1.29.017l-.096.053a5.22 5.22 0 0 0-.568.388L7.604 6.53a1.458 1.458 0 0 0-.54.912v8.118a1.458 1.458 0 0 0 .54 1.082l3.523 3.02c.18.154.378.29.58.405l.084.045a1.443 1.443 0 0 0 1.488-.017l.096-.053c.18-.1.365-.214.536-.345l3.523-3.02a1.458 1.458 0 0 0 .54-1.082V7.442a1.458 1.458 0 0 0-.54-.912l-3.523-3.02a5.22 5.22 0 0 0-.58-.405l-.084-.045a1.443 1.443 0 0 0-.202-.03Z M12 7.25a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75Zm0 9a.75.75 0 0 1 .75-.75h.008a.75.75 0 0 1 0 1.5H12.75A.75.75 0 0 1 12 16.25Z"/></svg>Gemini AI Tools</h3>
+                        <p class="text-xs text-gray-500 mt-1">Get an AI-powered summary of your text file before encrypting.</p>
+                        <textarea id="summaryOutput" class="w-full h-28 mt-2 text-sm p-2 border rounded-md bg-white" readonly placeholder="AI summary will appear here..."></textarea>
+                        <button id="summarizeBtn" class="w-full mt-2 btn btn-secondary text-sm">Summarize with Gemini ✨</button>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label for="encryptKeyInput" class="block text-sm font-medium text-gray-700 mb-1">Encryption Key</label>
+                    <div class="relative"><input type="password" id="encryptKeyInput" placeholder="Enter a key or generate one" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pl-4 pr-24 py-2.5"><div class="absolute inset-y-0 right-0 flex items-center pr-2 gap-1"><button id="viewKeyBtn" title="Show/Hide Key" class="btn btn-secondary p-2"></button><button id="copyKeyBtn" title="Copy Key" class="btn btn-secondary p-2"></button></div></div>
+                    <button id="generateKeyBtn" class="w-full mt-3 btn btn-secondary">Generate Secure Key</button>
+                </div>
+                <div class="mt-8">
+                    <button id="encryptBtn" class="w-full btn btn-primary py-3 text-base" disabled>Encrypt File</button>
+                    <p id="encryptStatus" class="text-center text-sm mt-4 font-medium"></p>
+                </div>
+            </div>
+            <div id="decryptPanel" class="tab-panel hidden">
+                <div id="decryptDropZone" class="drop-zone"><svg class="h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 18A9.75 9.75 0 0112 8.25c8.35 0 9.75 6.3 9.75 8.25s-1.4 8.25-9.75 8.25S3.75 26.35 3.75 18z" /></svg>
+                    <p class="mt-2 text-gray-500"><b>Drag & drop a .enc file</b> or click to select</p>
+                    <input type="file" id="decryptFileInput" class="hidden">
+                </div>
+                <div id="decryptFileDetails" class="mt-2 text-center hidden">
+                    <p id="decryptFileName" class="text-sm font-medium text-indigo-600"></p>
+                    <button id="decryptPreviewBtn" class="btn btn-secondary text-xs py-1 px-2 mt-1">Preview</button>
+                </div>
+                <div class="mt-6">
+                    <label for="decryptKeyInput" class="block text-sm font-medium text-gray-700 mb-1">Decryption Key</label>
+                    <input type="password" id="decryptKeyInput" placeholder="Enter the key to decrypt the file" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pl-4 py-2.5">
+                </div>
+                <div class="mt-8">
+                    <button id="decryptBtn" class="w-full btn btn-primary py-3 text-base" disabled>Decrypt File</button>
+                    <p id="decryptStatus" class="text-center text-sm mt-4 font-medium"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="previewModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="previewTitle" class="text-lg font-bold">File Preview</h3>
+                <button id="closeModalBtn" class="font-bold text-2xl">&times;</button>
+            </div>
+            <div id="previewContent" class="docx-preview-content"></div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const MAGIC_HEADER = 'XOR_ENC_SIG::';
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+    
+    const eyeIcon = `<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;
+    const eyeSlashIcon = `<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243l-4.243-4.243" /></svg>`;
+    const copyIcon = `<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" /></svg>`;
+    
+    const tabContainer = document.getElementById('tabContainer');
+    const encryptPanel = document.getElementById('encryptPanel');
+    const decryptPanel = document.getElementById('decryptPanel');
+    const encryptDropZone = document.getElementById('encryptDropZone');
+    const encryptFileInput = document.getElementById('encryptFileInput');
+    const encryptFileDetails = document.getElementById('encryptFileDetails');
+    const encryptFileName = document.getElementById('encryptFileName');
+    const encryptPreviewBtn = document.getElementById('encryptPreviewBtn');
+    const encryptKeyInput = document.getElementById('encryptKeyInput');
+    const generateKeyBtn = document.getElementById('generateKeyBtn');
+    const copyKeyBtn = document.getElementById('copyKeyBtn');
+    const viewKeyBtn = document.getElementById('viewKeyBtn');
+    const encryptBtn = document.getElementById('encryptBtn');
+    const encryptStatus = document.getElementById('encryptStatus');
+    const decryptDropZone = document.getElementById('decryptDropZone');
+    const decryptFileInput = document.getElementById('decryptFileInput');
+    const decryptFileDetails = document.getElementById('decryptFileDetails');
+    const decryptFileName = document.getElementById('decryptFileName');
+    const decryptPreviewBtn = document.getElementById('decryptPreviewBtn');
+    const decryptKeyInput = document.getElementById('decryptKeyInput');
+    const decryptBtn = document.getElementById('decryptBtn');
+    const decryptStatus = document.getElementById('decryptStatus');
+    const previewModal = document.getElementById('previewModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const previewContent = document.getElementById('previewContent');
+    const previewTitle = document.getElementById('previewTitle');
+    const geminiSection = document.getElementById('geminiSection');
+    const summarizeBtn = document.getElementById('summarizeBtn');
+    const summaryOutput = document.getElementById('summaryOutput');
+
+    let encryptFile = null;
+    let decryptFile = null;
+    
+    viewKeyBtn.innerHTML = eyeIcon;
+    copyKeyBtn.innerHTML = copyIcon;
+    
+    tabContainer.addEventListener('click', (e) => {
+        const targetTab = e.target.closest('button');
+        if (!targetTab) return;
+        const tabName = targetTab.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(tab => tab.classList.remove('active'));
+        targetTab.classList.add('active');
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.toggle('hidden', panel.id !== `${tabName}Panel`);
+        });
+    });
+    
+    function setupDropZone(dropZone, fileInput, fileHandler) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover')));
+        ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover')));
+        dropZone.addEventListener('drop', e => fileHandler(e.dataTransfer.files[0]));
+        dropZone.addEventListener('click', () => fileInput.click());
+    }
+    setupDropZone(encryptDropZone, encryptFileInput, (file) => handleFileSelect(file, 'encrypt'));
+    setupDropZone(decryptDropZone, decryptFileInput, (file) => handleFileSelect(file, 'decrypt'));
+
+    encryptFileInput.addEventListener('change', e => handleFileSelect(e.target.files[0], 'encrypt'));
+    decryptFileInput.addEventListener('change', e => handleFileSelect(e.target.files[0], 'decrypt'));
+    encryptKeyInput.addEventListener('input', updateEncryptButtonState);
+    decryptKeyInput.addEventListener('input', updateDecryptButtonState);
+    encryptBtn.addEventListener('click', () => processFile('encrypt'));
+    decryptBtn.addEventListener('click', () => processFile('decrypt'));
+    generateKeyBtn.addEventListener('click', generateAndSetKey);
+    copyKeyBtn.addEventListener('click', copyKeyToClipboard);
+    viewKeyBtn.addEventListener('click', toggleKeyVisibility);
+    summarizeBtn.addEventListener('click', summarizeFileWithGemini);
+    closeModalBtn.addEventListener('click', () => previewModal.classList.add('hidden'));
+    encryptPreviewBtn.addEventListener('click', () => previewFile(encryptFile));
+    decryptPreviewBtn.addEventListener('click', () => previewDecryptedFile());
+
+    function handleFileSelect(file, mode) {
+        if (!file) return;
+        if (mode === 'encrypt') {
+            encryptFile = file;
+            encryptFileName.textContent = `Selected: ${file.name}`;
+            encryptFileDetails.classList.remove('hidden');
+            geminiSection.classList.toggle('hidden', !file.type.startsWith('text/'));
+            updateEncryptButtonState();
+        } else {
+            decryptFile = file;
+            decryptFileName.textContent = `Selected: ${file.name}`;
+            decryptFileDetails.classList.remove('hidden');
+            updateDecryptButtonState();
+        }
+    }
+
+    function updateEncryptButtonState() {
+        encryptBtn.disabled = !(encryptFile && encryptKeyInput.value.length > 0);
+    }
+    function updateDecryptButtonState() {
+        decryptBtn.disabled = !(decryptFile && decryptKeyInput.value.length > 0);
+    }
+    
+    function generateAndSetKey() {
+        const array = new Uint32Array(8);
+        window.crypto.getRandomValues(array);
+        const key = Array.from(array, dec => ('0' + dec.toString(16)).slice(-8)).join('');
+        encryptKeyInput.type = 'text';
+        encryptKeyInput.value = key;
+        viewKeyBtn.innerHTML = eyeSlashIcon;
+        updateEncryptButtonState();
+    }
+    
+    function toggleKeyVisibility() {
+        const isPassword = encryptKeyInput.type === 'password';
+        encryptKeyInput.type = isPassword ? 'text' : 'password';
+        viewKeyBtn.innerHTML = isPassword ? eyeSlashIcon : eyeIcon;
+    }
+
+    function copyKeyToClipboard() {
+        const keyToCopy = encryptKeyInput.value;
+        if (!keyToCopy) return;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(keyToCopy).then(() => setStatus('encrypt', '✅ Key copied to clipboard!', 'green'));
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = keyToCopy;
+            textArea.style.position = "absolute";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setStatus('encrypt', '✅ Key copied to clipboard!', 'green');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+    }
+    
+    async function summarizeFileWithGemini() {
+        if (!encryptFile || !encryptFile.type.startsWith('text/')) return;
+        summaryOutput.value = "Asking Gemini for a summary... 🧠";
+        summaryOutput.classList.add('animate-pulse');
+        const fileText = await encryptFile.text();
+        const API_KEY = "PASTE_YOUR_API_KEY_HERE"; // Replace with your key
+        async function summarizeFileWithGemini() {
+        if (!encryptFile || !encryptFile.type.startsWith('text/')) {
+            setStatus('encrypt', '❌ Please select a text file to summarize.', 'red');
+            return;
+        }
+
+        summaryOutput.value = "Asking Gemini for a summary... 🧠";
+        summaryOutput.classList.add('animate-pulse');
+
+        const fileText = await encryptFile.text();
+        
+        // --- GEMINI API INTEGRATION ---
+        // Your API key is placed here.
+        const API_KEY = "PASTE_YOUR_API_KEY_HERE"; 
+        const API_URL = `/.netlify/functions/summarize`;
+        
+        try {
+            // This is the REAL API call that will now run
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: "Summarize the following text in a few concise bullet points:\n\n" + fileText }] }]
+                })
+            });
+
+            if (!response.ok) {
+    
+                const errorData = await response.json();
+                const errorMessage = errorData?.error?.message || `API Error: ${response.statusText}`;
+                throw new Error(errorMessage);
+            }
+            
+            const data = await response.json();
+            
+            
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                 const summary = data.candidates[0].content.parts[0].text;
+                 summaryOutput.value = summary;
+            } else {
+                throw new Error("Received an unexpected response format from the API.");
+            }
+
+        } catch (error) {
+            console.error("Gemini API Error:", error);
+            summaryOutput.value = `Error: Could not get summary.\n\nDetails: ${error.message}`;
+        } finally {
+            summaryOutput.classList.remove('animate-pulse');
+        }
+    }
+        // Real fetch logic would go here
+    }
+    
+    function setStatus(mode, message, color) {
+        const element = mode === 'encrypt' ? encryptStatus : decryptStatus;
+        element.textContent = message;
+        element.style.color = color;
+    }
+
+    async function previewFile(file) {
+        if (!file) return;
+        previewTitle.textContent = file.name;
+        previewContent.innerHTML = '<p class="text-center animate-pulse">Loading preview...</p>';
+        previewModal.classList.remove('hidden');
+
+        const fileType = file.type;
+        const docxMimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+        try {
+            if (fileType.startsWith('image/')) {
+                const objectURL = URL.createObjectURL(file);
+                previewContent.innerHTML = `<img src="${objectURL}" class="max-w-full h-auto rounded-md">`;
+            } else if (fileType === 'application/pdf') {
+                const objectURL = URL.createObjectURL(file);
+                previewContent.innerHTML = `<iframe src="${objectURL}" class="w-full h-[80vh] border-none"></iframe>`;
+            } else if (fileType === docxMimeType || file.name.endsWith('.docx')) {
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+                previewContent.innerHTML = result.value;
+            } else if (fileType.startsWith('text/')) {
+                const text = await file.text();
+                previewContent.innerHTML = `<pre class="whitespace-pre-wrap text-sm">${text}</pre>`;
+            } else {
+                previewContent.innerHTML = '<p>Preview not available for this file type.</p><p class="text-xs text-gray-500 mt-2">Supported types: Images, PDF, Plain Text, and DOCX.</p>';
+            }
+        } catch (error) {
+            console.error('Preview Error:', error);
+            previewContent.innerHTML = `<p class="text-red-500">Could not generate preview. The file may be corrupt.</p>`;
+        }
+    }
+    
+    async function previewDecryptedFile() {
+        if (!decryptFile || !decryptKeyInput.value) {
+            setStatus('decrypt', '❌ Please select a file and enter a key to preview.', 'red');
+            return;
+        }
+        try {
+            const fileBuffer = await decryptFile.arrayBuffer();
+            const resultData = xorProcess(new Uint8Array(fileBuffer), decryptKeyInput.value);
+            const headerString = textDecoder.decode(resultData.slice(0, MAGIC_HEADER.length));
+            if (headerString !== MAGIC_HEADER) {
+                setStatus('decrypt', '❌ Cannot preview. Invalid key or corrupted file.', 'red');
+                return;
+            }
+            const finalData = resultData.slice(MAGIC_HEADER.length);
+            const blob = new Blob([finalData]);
+            await previewFile(new File([blob], "decrypted_preview.txt", {type: "text/plain"}));
+        } catch (error) {
+            setStatus('decrypt', `❌ Preview Error: ${error.message}`, 'red');
+        }
+    }
+
+    async function processFile(mode) {
+        const isEncrypt = mode === 'encrypt';
+        const file = isEncrypt ? encryptFile : decryptFile;
+        const key = isEncrypt ? encryptKeyInput.value : decryptKeyInput.value;
+        setStatus(mode, 'Processing...', '#6b7280');
+        try {
+            const fileBuffer = await file.arrayBuffer();
+            let fileData = new Uint8Array(fileBuffer);
+            if (isEncrypt) {
+                const headerBytes = textEncoder.encode(MAGIC_HEADER);
+                const combinedData = new Uint8Array(headerBytes.length + fileData.length);
+                combinedData.set(headerBytes);
+                combinedData.set(fileData, headerBytes.length);
+                fileData = combinedData;
+            }
+            const resultData = xorProcess(fileData, key);
+            if (!isEncrypt) {
+                const headerString = textDecoder.decode(resultData.slice(0, MAGIC_HEADER.length));
+                if (headerString !== MAGIC_HEADER) {
+                    setStatus(mode, '❌ Decryption failed! Invalid key or corrupted file.', 'red');
+                    return;
+                }
+                const finalData = resultData.slice(MAGIC_HEADER.length);
+                downloadFile(finalData, file.name.replace(/\.enc$/, '') || `decrypted_${file.name}`);
+                setStatus(mode, `✅ Success! File decrypted and download started.`, 'green');
+            } else {
+                downloadFile(resultData, `${file.name}.enc`);
+                setStatus(mode, `✅ Success! File encrypted as ${file.name}.enc.`, 'green');
+            }
+        } catch (error) {
+            console.error('Processing error:', error);
+            setStatus(mode, `❌ An error occurred: ${error.message}`, 'red');
+        }
+    }
+
+    function xorProcess(data, key) {
+        const keyBytes = textEncoder.encode(key);
+        const output = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            output[i] = data[i] ^ keyBytes[i % keyBytes.length];
+        }
+        return output;
+    }
+
+    function downloadFile(data, filename) {
+        const blob = new Blob([data], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+});
+</script>
+</body>
+</html>
